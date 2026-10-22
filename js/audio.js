@@ -4,18 +4,75 @@
   let ac = null, master = null, amb = null, tv = null;
   let muted = false;
 
+  // iOS Safari: Web Audio по умолчанию идёт в «фоновый» канал и молчит,
+  // когда на iPhone включён беззвучный режим. Просим канал «воспроизведение»
+  // (Safari 16.4+), а на старых версиях держим тихий <audio> — он делает то же.
+  let silentEl = null;
+  function silentWavURL() {
+    const n = 800, rate = 8000;
+    const b = new Uint8Array(44 + n);
+    const v = new DataView(b.buffer);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, 'data'); v.setUint32(40, n, true);
+    b.fill(128, 44);
+    let bin = '';
+    for (let i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]);
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+  function iosPlayback() {
+    try {
+      if (navigator.audioSession && navigator.audioSession.type !== 'playback') { navigator.audioSession.type = 'playback'; return; }
+    } catch (e) { /* нет API — идём дальше */ }
+    if (navigator.audioSession) return;
+    const iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!iOS) return;
+    try {
+      if (!silentEl) {
+        silentEl = document.createElement('audio');
+        silentEl.setAttribute('x-webkit-airplay', 'deny');
+        silentEl.setAttribute('playsinline', '');
+        silentEl.preload = 'auto';
+        silentEl.loop = true;
+        silentEl.src = silentWavURL();
+      }
+      const p = silentEl.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* не вышло — значит, без этого */ }
+  }
+
+  function resume() {
+    try { const r = ac.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* старый Safari */ }
+  }
+
   function init() {
-    if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return true; }
+    if (ac) {
+      // на iOS контекст бывает «interrupted» после звонка или сворачивания
+      if (ac.state !== 'running') resume();
+      return true;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     try {
+      iosPlayback();
       ac = new AC();
       master = ac.createGain();
       master.gain.value = muted ? 0 : 0.8;
       master.connect(ac.destination);
+      // короткий пустой буфер внутри жеста «разблокирует» звук в Safari
+      const b = ac.createBuffer(1, 1, 22050);
+      const src = ac.createBufferSource();
+      src.buffer = b; src.connect(ac.destination); src.start(0);
+      if (ac.state !== 'running') resume();
       return true;
     } catch (e) { ac = null; return false; }
   }
+  // Разблокируем на любом касании, а не только на кнопках
+  function unlock() { iosPlayback(); init(); }
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlock, { capture: true, passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && ac && ac.state !== 'running') resume(); });
 
   function noiseBuffer(sec, brown) {
     const len = Math.floor(ac.sampleRate * sec);
