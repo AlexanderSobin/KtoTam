@@ -9,7 +9,7 @@
   // Осмотров у двери всегда меньше, чем известных признаков:
   // хотя бы один признак остаётся непроверенным.
   const doorChecks = () => Math.max(1, Math.min(3, (S && S.rules ? S.rules.length : 2) - 1));
-  const MORNING_CHECKS = 2;
+  const MORNING_CHECKS = 1;
 
   // ---------- Хранилище с защитой от ошибок ----------
   const store = {
@@ -26,7 +26,7 @@
   let S = null;
   function newState() {
     return {
-      v: 3, night: 0, phase: 'intro', gi: 0,
+      v: 4, night: 0, phase: 'intro', gi: 0,
       roll: rollCast(),
       house: [], // {id, since}
       away: [],  // id прогнанных
@@ -41,7 +41,7 @@
   }
   function save() { if (S) store.set(SAVE_KEY, S); }
   function validSave(x) {
-    return x && x.v === 3 && x.roll && Array.isArray(x.roll.order) && typeof x.night === 'number' && Array.isArray(x.house) && x.stats && typeof x.phase === 'string';
+    return x && x.v === 4 && x.roll && Array.isArray(x.roll.order) && typeof x.night === 'number' && Array.isArray(x.house) && x.stats && typeof x.phase === 'string';
   }
 
   // ---------- Случайный расклад на прохождение ----------
@@ -59,14 +59,14 @@
     do {
       v = {};
       maybe.forEach(id => { v[id] = Math.random() < 0.42; });
-    } while (maybe.filter(id => v[id]).length < 3 || maybe.filter(id => v[id]).length > 6);
+    } while (maybe.filter(id => v[id]).length < 5 || maybe.filter(id => v[id]).length > 9);
     ids.forEach(id => { if (D.C[id].visitor !== 'maybe') v[id] = !!D.C[id].visitor; });
     const nightOf = {};
     D.NIGHTS.forEach((n, i) => n.guests.forEach(id => { nightOf[id] = i; }));
     nightOf.judge = 6;
     const known = [];
     const unlockedBy = D.NEWS.map(n => { known.push(...(n.rules || [])); return known.slice(); });
-    const t = {}, d = {}, o = {};
+    const t = {}, d = {}, o = {}, sub = {};
     ids.forEach(id => {
       const c = D.C[id], n = nightOf[id] || 0;
       const base = (c.decoys || []).slice();
@@ -75,6 +75,8 @@
         const cnt = n === 0 ? (Math.random() < 0.5 ? 1 : 2) : n <= 4 ? (Math.random() < 0.65 ? 1 : 2) : 1;
         t[id] = pool.slice(0, cnt);
         o[id] = t[id].includes('eyes') && n >= 3 && Math.random() < 0.6;
+        // со второй ночи признак всё чаще проявляется слабо
+        sub[id] = n >= 1 && Math.random() < 0.25 + 0.1 * n;
         if (Math.random() < 0.3) base.push(rnd(DECOY_POOL));
       } else {
         t[id] = [];
@@ -94,7 +96,7 @@
     order[jn].splice(Math.floor(Math.random() * (order[jn].length + 1)), 0, 'judge');
     const pn = 3 + Math.floor(Math.random() * 3);
     order[pn].splice(Math.floor(Math.random() * (order[pn].length + 1)), 0, 'patrol');
-    return { v, t, d, o, order, patrolNight: pn };
+    return { v, t, d, o, sub, order, patrolNight: pn };
   }
 
   // ---------- Утилиты ----------
@@ -119,18 +121,19 @@
     if (castFor !== S) { castFor = S; cast = {}; }
     if (!cast[id]) {
       const R = S.roll;
-      cast[id] = Object.assign({}, D.C[id], { visitor: !!R.v[id], tells: R.t[id] || [], decoys: R.d[id] || [], oneEye: !!R.o[id], maybe: D.C[id].visitor === 'maybe' });
+      cast[id] = Object.assign({}, D.C[id], { visitor: !!R.v[id], tells: R.t[id] || [], decoys: R.d[id] || [], oneEye: !!R.o[id], subtle: !!(R.sub && R.sub[id]), maybe: D.C[id].visitor === 'maybe' });
     }
     return cast[id];
   }
   function rnd(a) { return a[Math.floor(Math.random() * a.length)]; }
-  function specOf(c) { return Object.assign({ id: c.id, tells: c.tells || [], decoys: c.decoys || [], f: c.f, oneEye: c.oneEye }, c.look); }
+  function specOf(c) { return Object.assign({ id: c.id, tells: c.tells || [], decoys: c.decoys || [], f: c.f, oneEye: c.oneEye, subtle: c.subtle }, c.look); }
   // Утренняя реплика: у «переодетого» Посетителя — свои странности
   function morningLine(c, i) {
     if (c.visitor && c.maybe) {
       return D.VMORNING[i % D.VMORNING.length].replace('{name}', c.name).replace('{sat}', g(c, 'сидел', 'сидела')).replace('{said}', g(c, 'сказал', 'сказала')).replace(/\{a\}/g, g(c, '', 'а'));
     }
-    return c.morning ? c.morning[i % c.morning.length] : '';
+    const lines = (!c.visitor && c.hmorning) ? c.hmorning : c.morning;
+    return lines ? lines[i % lines.length] : '';
   }
   const humansIn = () => S.house.filter(h => !C(h.id).visitor);
   const visitorsIn = () => S.house.filter(h => C(h.id).visitor);
@@ -170,7 +173,7 @@
   // Кэш кадров портретов
   const frameCache = new Map();
   function portraitFrames(c, w, h) {
-    const key = c.id + ':' + w + 'x' + h + ':' + (c.tells || []).join() + (c.decoys || []).join() + (c.oneEye ? 1 : 0);
+    const key = c.id + ':' + w + 'x' + h + ':' + (c.tells || []).join() + (c.decoys || []).join() + (c.oneEye ? 1 : 0) + (c.subtle ? 's' : '');
     if (!frameCache.has(key)) frameCache.set(key, Portrait.renderFrames(specOf(c), w, h));
     return frameCache.get(key);
   }
@@ -400,7 +403,7 @@
       }
     }
     if (S) {
-      c.appendChild(el('div', 'fine', `<br>На двери этой ночью — ${doorChecks()} ${plural(doorChecks(), 'осмотр', 'осмотра', 'осмотров')} на гостя, признаков известно больше. Утром — ${MORNING_CHECKS + morningBonus()} осмотра на всех жильцов. Посетитель в доме нападает со второй ночи.`));
+      c.appendChild(el('div', 'fine', `<br>На двери этой ночью — ${doorChecks()} ${plural(doorChecks(), 'осмотр', 'осмотра', 'осмотров')} на гостя, признаков известно больше. Утром — ${MORNING_CHECKS + morningBonus()} ${plural(MORNING_CHECKS + morningBonus(), 'осмотр', 'осмотра', 'осмотров')} на всех жильцов. Посетитель в доме нападает со второй ночи.`));
       if (S.house.length) c.appendChild(el('div', 'fine', 'В доме: ' + S.house.map(h => esc(C(h.id).name)).join(', ') + ', кот Тапок.'));
     }
     const r = el('div', 'row'); r.style.marginTop = '10px';
@@ -604,11 +607,11 @@
     if (type === 'light') {
       Sound.flash();
       const v = (c.tells || []).includes('light');
-      const target = v ? 1.75 : 0.35;
-      const t0 = performance.now();
+      const target = v ? (c.subtle ? 1.3 : 1.75) : 0.35;
+      const t0 = performance.now() + (c.subtle ? 350 : 0);
       let f = 0;
       const tm = setInterval(() => {
-        const t = Math.min(1, (performance.now() - t0) / 1400);
+        const t = Math.max(0, Math.min(1, (performance.now() - t0) / 1400));
         const e = 1 - Math.pow(1 - t, 3);
         const pu = 1 + (target - 1) * e;
         cx.clearRect(0, 0, cv.width, cv.height);
@@ -829,7 +832,7 @@
       else { const pool = S.house.filter(h => h !== seer && !C(h.id).visitor); if (pool.length) target = rnd(pool); }
       if (target) log.push({ t: `Мадам Розалия раскинула карты и долго молчала. Потом ткнула пальцем: «Пиковая дама ложится на ${C(target.id).name}. Берегитесь». Карты, говорят, иногда врут.`, cls: '' });
     }
-    if (vNow.length && Math.random() < 0.55) {
+    if (vNow.length && Math.random() < 0.4) {
       log.push({ t: `Тапок всю ночь не сводил глаз с того угла, где спит ${C(rnd(vNow).id).name}. Шерсть дыбом, хвост трубой.`, cls: '' });
     } else if (S.house.length && Math.random() < 0.35) {
       log.push({ t: `Тапок долго смотрел туда, где спит ${C(rnd(S.house).id).name}, потом зевнул и ушёл. Кто знает, что у кота на уме.`, cls: '' });

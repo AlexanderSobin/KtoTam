@@ -272,9 +272,15 @@
       const pr = ir * 0.42 * ps;
       if (tell(s, 'eyes') && !glass && !(s.oneEye && side < 0)) {
         // двойной зрачок — главный признак «Посетителя»
-        const off = pr * 0.55;
-        k.shape(k.blob(ix - off, iy, pr * 0.78, pr * 0.85, { irr: 0.05 }), '#0e0906', { w: 0 });
-        k.shape(k.blob(ix + off, iy + pr * 0.12, pr * 0.7, pr * 0.78, { irr: 0.05 }), '#0e0906', { w: 0 });
+        if (s.subtle) {
+          // слабый признак: обычный зрачок и маленький «нарост» сбоку
+          k.shape(k.blob(ix, iy, pr * 0.92, pr * 0.92, { irr: 0.03 }), '#0e0906', { w: 0 });
+          k.shape(k.blob(ix + pr * 0.85, iy + pr * 0.2, pr * 0.42, pr * 0.45, { irr: 0.05 }), '#0e0906', { w: 0 });
+        } else {
+          const off = pr * 0.55;
+          k.shape(k.blob(ix - off, iy, pr * 0.78, pr * 0.85, { irr: 0.05 }), '#0e0906', { w: 0 });
+          k.shape(k.blob(ix + off, iy + pr * 0.12, pr * 0.7, pr * 0.78, { irr: 0.05 }), '#0e0906', { w: 0 });
+        }
       } else {
         k.shape(k.blob(ix, iy, pr, pr, { irr: 0.03 }), '#0e0906', { w: 0 });
       }
@@ -556,6 +562,14 @@
     k.shape(k.blob(200, h.y + 6, h.w * 1.08, h.h * 0.98, { irr: 0.03 }), '#1c1a16', { w: 0 });
   }
 
+  function hoodBack(k, s) {
+    const h = s.head, col = s.hat.color;
+    const p = k.curve([[200 - h.w * 1.7, 520], [200 - h.w * 1.5, h.y + h.h * 0.6], [200 - h.w * 1.35, h.y - h.h * 0.4], [200 - h.w * 0.8, h.y - h.h * 1.15], [200, h.y - h.h * 1.28], [200 + h.w * 0.8, h.y - h.h * 1.15], [200 + h.w * 1.35, h.y - h.h * 0.4], [200 + h.w * 1.5, h.y + h.h * 0.6], [200 + h.w * 1.7, 520]]);
+    k.shape(p, col, { w: 3.5, shadeSide: [0.6, 0.2], shadeAmt: 0.25, hatch: { angle: -1.0, gap: 5, alpha: 0.3, dash: true } });
+    // тёмная глубина капюшона за головой
+    k.shape(k.blob(200, h.y + 10, h.w * 1.12, h.h * 1.08), '#151210', { w: 0 });
+  }
+
   function hat(k, s) {
     const T = s.hat, h = s.head;
     if (T.type === 'none') return;
@@ -596,9 +610,21 @@
         k.shape(k.blob(x, brimY + 22 + k.srand(0, 20), 3, 5), '#a9c2c9', { w: 1, alpha: 0.8 });
       }
     } else if (T.type === 'hood') {
-      const p = k.curve([[200 - h.w * 1.5, 520], [200 - h.w * 1.45, h.y], [200 - h.w * 1.0, topY - 30], [200, topY - 50], [200 + h.w * 1.0, topY - 30], [200 + h.w * 1.45, h.y], [200 + h.w * 1.5, 520]])
-        .concat(k.curve([[200 + h.w * 1.05, 520], [200 + h.w * 1.1, h.y], [200 + h.w * 0.7, topY], [200, topY - 14], [200 - h.w * 0.7, topY], [200 - h.w * 1.1, h.y], [200 - h.w * 1.05, 520]]));
-      k.shape(p, col, { w: 3.5, hatch: { angle: -1.0, gap: 5, alpha: 0.35 } });
+      // передний край капюшона обрамляет лицо и скрывает волосы
+      const outer = k.blob(200, h.y - 4, h.w * 1.26, h.h * 1.18, { irr: 0.05 });
+      const inner = k.blob(200, h.y + 16, h.w * 0.94, h.h * 0.97, { irr: 0.04 });
+      const c = k.ctx;
+      c.save();
+      c.beginPath(); c.rect(0, 0, 400, h.y + h.h * 0.55); c.clip();
+      c.beginPath();
+      [outer, inner].forEach(P => { c.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) c.lineTo(P[i][0], P[i][1]); c.closePath(); });
+      c.fillStyle = col; c.fill('evenodd');
+      k.clip(outer, () => k.hatch(outer, { angle: -1.0, gap: 5, alpha: 0.35, dash: true, region: (x, y) => Math.hypot((x - 200) / (h.w * 0.94), (y - h.y - 16) / (h.h * 0.97)) > 1 }));
+      k.stroke(outer, { w: 3.5 });
+      k.stroke(inner, { w: 3 });
+      // складки ткани
+      for (const side of [-1, 1]) k.stroke(k.curve([[200 + side * h.w * 0.4, topY - 10], [200 + side * h.w * 0.9, h.y - h.h * 0.5], [200 + side * h.w * 1.05, h.y]]), { closed: false, w: 1.6, alpha: 0.5 });
+      c.restore();
     } else if (T.type === 'beret') {
       const b = k.blob(200 - 15, topY + 4, h.w * 1.15, 34, { irr: 0.1, rot: -0.15 });
       k.shape(b, col, { w: 3.5, hatch: { angle: 0.6, gap: 6, alpha: 0.25 } });
@@ -698,8 +724,13 @@
       k.shape(k.blob(200 + 14, top + 124, 13, 13), '#a8a8a0', { w: 2.5 });
     }
     if (has(s, 'headphones')) {
-      k.stroke(k.curve([[200 - h.w * 1.02, h.y + 10], [200 - h.w * 0.9, h.y + h.h * 0.8], [200, h.y + h.h + 30], [200 + h.w * 0.9, h.y + h.h * 0.8], [200 + h.w * 1.02, h.y + 10]]), { closed: false, w: 7, color: '#2a2a2a' });
-      for (const side of [-1, 1]) k.shape(k.blob(200 + side * h.w * 1.02, h.y + h.h * 0.85, 22, 18), '#3d3d3d', { w: 3 });
+      const top = h.y - h.h - (s.hat.type === 'beanie' ? 30 : 8);
+      k.stroke(k.curve([[200 - h.w * 1.08, h.y + 2], [200 - h.w * 1.12, h.y - h.h * 0.6], [200 - h.w * 0.6, top + 8], [200, top], [200 + h.w * 0.6, top + 8], [200 + h.w * 1.12, h.y - h.h * 0.6], [200 + h.w * 1.08, h.y + 2]]), { closed: false, w: 8, color: '#2a2a2a' });
+      for (const side of [-1, 1]) {
+        const cx = 200 + side * h.w * 1.04, cy = h.y + 10;
+        k.shape(k.blob(cx, cy, 17, 27, { squareness: 0.3 }), '#3d3d3d', { w: 3, shadeSide: [side * 0.5, 0.3], shadeAmt: 0.25 });
+        k.shape(k.blob(cx - side * 7, cy, 6, 19), '#565650', { w: 1.5 });
+      }
     }
     if (has(s, 'bandage')) {
       const x = 200 - E.gap - 6, y = h.y + 44;
@@ -813,7 +844,9 @@
     accessories(k, s, 'back');
     hairBack(k, s);
     body(k, s);
-    if (s.hat.type === 'hazmat') hazmatBack(k, s); else ears(k, s);
+    const hooded = s.hat.type === 'hood';
+    if (hooded) hoodBack(k, s);
+    if (s.hat.type === 'hazmat') hazmatBack(k, s); else if (!hooded) ears(k, s);
     const hp = headPts(k, s);
     headFill(k, s, hp);
     eyesAndBrows(k, s, { blink: o.blink });
@@ -821,7 +854,7 @@
     facialHair(k, s, 'beard');
     mouth(k, s, o);
     facialHair(k, s, 'mustache');
-    hairFront(k, s);
+    if (!hooded) hairFront(k, s);
     sweat(k, s);
     hat(k, s);
     accessories(k, s, 'front');
