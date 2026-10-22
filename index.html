@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#17110d">
+  <title>Кто там?</title>
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Фильтр «живой линии» для рамок и кнопок -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="wobble" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence id="wobble-turb" type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="1" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+  <div id="app"></div>
+  <script src="js/sketch.js"></script>
+  <script src="js/portrait.js"></script>
+  <script src="js/exam.js"></script>
+  <script src="js/scenes.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
