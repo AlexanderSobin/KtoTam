@@ -344,12 +344,18 @@
     setTimeout(() => { on = true; Sound.tvQuiet(true); }, 700);
     cleanups.push(() => Sound.tvOff());
 
+    stage.style.flex = '0 0 36%';
+    stage.style.minHeight = '110px';
     const card = el('div', 'card tv-text tilt scroll');
-    card.style.maxHeight = '42%';
+    card.style.flex = '1 1 0';
     card.appendChild(el('div', 'sheet-title', esc(n.title)));
-    const body = el('div');
+    const body = el('div', 'card-body');
     card.appendChild(body);
     s.appendChild(card);
+    // текст печатается — держим низ в поле зрения
+    const mo = new MutationObserver(() => { body.scrollTop = body.scrollHeight; });
+    mo.observe(body, { childList: true, subtree: true, characterData: true });
+    cleanups.push(() => mo.disconnect());
     const r = el('div', 'row'); r.style.marginTop = '8px';
     s.appendChild(r);
     let i = 0;
@@ -358,7 +364,6 @@
         const p = el('p');
         body.appendChild(p);
         typeText(p, n.text[i], 16);
-        p.scrollIntoView({ block: 'end' });
         i++;
         r.innerHTML = '';
         r.appendChild(btn(i < n.text.length ? 'Дальше' : 'Записать в журнал', '', next));
@@ -380,8 +385,10 @@
   // ---------- Журнал ----------
   function showJournal(fresh, after) {
     const o = overlay();
-    const c = el('div', 'card');
-    c.appendChild(el('div', 'sheet-title', 'Журнал'));
+    const card = el('div', 'card');
+    card.appendChild(el('div', 'sheet-title', 'Журнал'));
+    const c = el('div', 'card-body');
+    card.appendChild(c);
     const n = D.NEWS[S ? S.night : 0];
     if (!S || !S.rules.length) c.appendChild(el('p', '', 'Пока пусто. Слушайте новости.'));
     else {
@@ -398,8 +405,8 @@
     }
     const r = el('div', 'row'); r.style.marginTop = '10px';
     r.appendChild(btn(after ? 'Понятно. Ждать ночи' : 'Закрыть', after ? 'green' : '', () => { o.remove(); if (after) after(); }));
-    c.appendChild(r);
-    o.appendChild(c);
+    card.appendChild(r);
+    o.appendChild(card);
   }
   function morningBonus() {
     return (S.house.some(h => C(h.id).perk === 'doctor') ? 1 : 0) + (S.bonus || 0);
@@ -849,7 +856,9 @@
     s.appendChild(topbar(`Утро ${S.night + 1}`, `осмотров: ${S.morningLeft}`));
     const card = el('div', 'card log tilt scroll');
     card.style.maxHeight = '38%';
-    (S.morningLog || []).forEach(x => card.appendChild(el('p', x.cls, esc(x.t))));
+    const lb = el('div', 'card-body');
+    card.appendChild(lb);
+    (S.morningLog || []).forEach(x => lb.appendChild(el('p', x.cls, esc(x.t))));
     s.appendChild(card);
     s.appendChild(el('div', 'fine', '<br>Нажмите на жильца, чтобы осмотреть его или выставить за дверь.'));
     const grid = el('div', 'house');
@@ -989,22 +998,24 @@
     s.appendChild(stage);
     const card = el('div', 'card log tilt scroll');
     card.style.maxHeight = '40%';
-    E.text.forEach(t => card.appendChild(el('p', '', esc(t))));
+    const eb = el('div', 'card-body');
+    card.appendChild(eb);
+    E.text.forEach(t => eb.appendChild(el('p', '', esc(t))));
     if (E.tone !== 'bad' && S.dead.length >= 2) {
-      card.appendChild(el('p', 'bad', esc(`Вы помните их всех: ${S.dead.map(id => C(id).name).join(', ')}. Иногда ночью вам кажется, что кто-то из них снова стучит.`)));
+      eb.appendChild(el('p', 'bad', esc(`Вы помните их всех: ${S.dead.map(id => C(id).name).join(', ')}. Иногда ночью вам кажется, что кто-то из них снова стучит.`)));
     }
     const st = S.stats;
     const totalV = st.inV + st.awayV;
     const caught = st.awayV + st.expV + st.patrolV;
-    card.appendChild(el('p', 'fine', `Впущено людей: ${st.inH}. Впущено Посетителей: ${st.inV}. Прогнано людей: ${st.awayH}. Прогнано Посетителей: ${st.awayV}. Выставлено на солнце: ${st.expH + st.expV} (из них Посетителей: ${st.expV}). Пропало жильцов: ${st.takenH}. Ушли сами: ${st.leftH || 0}. Погибли у вашей двери: ${S.dead.length}.`));
-    card.appendChild(el('p', 'fine', `Распознано Посетителей: ${Math.min(caught, totalV)} из ${totalV}.`));
+    eb.appendChild(el('p', 'fine', `Впущено людей: ${st.inH}. Впущено Посетителей: ${st.inV}. Прогнано людей: ${st.awayH}. Прогнано Посетителей: ${st.awayV}. Выставлено на солнце: ${st.expH + st.expV} (из них Посетителей: ${st.expV}). Пропало жильцов: ${st.takenH}. Ушли сами: ${st.leftH || 0}. Погибли у вашей двери: ${S.dead.length}.`));
+    eb.appendChild(el('p', 'fine', `Распознано Посетителей: ${Math.min(caught, totalV)} из ${totalV}.`));
     const l = el('div', 'endings-list');
     for (const k in D.ENDINGS) {
       const got = meta.endings.includes(k);
       l.appendChild(el('span', got ? 'got' : '', got ? esc(D.ENDINGS[k].title) : '???'));
     }
-    card.appendChild(el('div', 'fine', 'Концовки:'));
-    card.appendChild(l);
+    eb.appendChild(el('div', 'fine', 'Концовки:'));
+    eb.appendChild(l);
     s.appendChild(card);
     const r = el('div', 'row'); r.style.marginTop = '8px';
     r.appendChild(btn('В начало', '', () => { S = null; showTitle(); }));
