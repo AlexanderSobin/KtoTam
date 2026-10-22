@@ -6,7 +6,9 @@
   const SAVE_KEY = 'ktotam.save.v1';
   const META_KEY = 'ktotam.meta.v1';
   const NIGHTS_TOTAL = D.NIGHTS.length;
-  const DOOR_CHECKS = 3;
+  // Осмотров у двери всегда меньше, чем известных признаков:
+  // хотя бы один признак остаётся непроверенным.
+  const doorChecks = () => Math.max(1, Math.min(3, (S && S.rules ? S.rules.length : 2) - 1));
   const MORNING_CHECKS = 2;
 
   // ---------- Хранилище с защитой от ошибок ----------
@@ -24,7 +26,7 @@
   let S = null;
   function newState() {
     return {
-      v: 2, night: 0, phase: 'intro', gi: 0,
+      v: 3, night: 0, phase: 'intro', gi: 0,
       roll: rollCast(),
       house: [], // {id, since}
       away: [],  // id прогнанных
@@ -32,13 +34,14 @@
       pending: [], // строки для утреннего отчёта
       morningLeft: 0, bonus: 0,
       rules: [], myths: [],
-      stats: { inH: 0, inV: 0, awayH: 0, awayV: 0, takenH: 0, expH: 0, expV: 0, patrolV: 0 },
+      stats: { inH: 0, inV: 0, awayH: 0, awayV: 0, takenH: 0, expH: 0, expV: 0, patrolV: 0, leftH: 0 },
+      guilt: 0, dead: [], deadNight: [],
       flags: {}
     };
   }
   function save() { if (S) store.set(SAVE_KEY, S); }
   function validSave(x) {
-    return x && x.v === 2 && x.roll && Array.isArray(x.roll.order) && typeof x.night === 'number' && Array.isArray(x.house) && x.stats && typeof x.phase === 'string';
+    return x && x.v === 3 && x.roll && Array.isArray(x.roll.order) && typeof x.night === 'number' && Array.isArray(x.house) && x.stats && typeof x.phase === 'string';
   }
 
   // ---------- Случайный расклад на прохождение ----------
@@ -60,6 +63,7 @@
     ids.forEach(id => { if (D.C[id].visitor !== 'maybe') v[id] = !!D.C[id].visitor; });
     const nightOf = {};
     D.NIGHTS.forEach((n, i) => n.guests.forEach(id => { nightOf[id] = i; }));
+    nightOf.judge = 6;
     const known = [];
     const unlockedBy = D.NEWS.map(n => { known.push(...(n.rules || [])); return known.slice(); });
     const t = {}, d = {}, o = {};
@@ -86,6 +90,8 @@
       if (n.guests.includes('liza2')) l.push('liza2');
       return l;
     });
+    const jn = 4 + Math.floor(Math.random() * 3);
+    order[jn].splice(Math.floor(Math.random() * (order[jn].length + 1)), 0, 'judge');
     const pn = 3 + Math.floor(Math.random() * 3);
     order[pn].splice(Math.floor(Math.random() * (order[pn].length + 1)), 0, 'patrol');
     return { v, t, d, o, order, patrolNight: pn };
@@ -303,7 +309,11 @@
   // ---------- Новости ----------
   function showNews() {
     Sound.stopAmbient();
-    const n = D.NEWS[S.night];
+    const n0 = D.NEWS[S.night];
+    const n = Object.assign({}, n0, { text: n0.text.slice() });
+    if (S.deadLast && S.deadLast.length) {
+      n.text.splice(1, 0, `Сводка по вашей улице. На рассвете не успели укрыться: ${S.deadLast.map(id => C(id).name).join(', ')}. Соседи видели, как они стучали в двери. Им не открыли.`);
+    }
     const s = screen();
     s.appendChild(topbar(`Перед ночью ${S.night + 1}`));
     const stage = el('div', 'stage');
@@ -383,7 +393,7 @@
       }
     }
     if (S) {
-      c.appendChild(el('div', 'fine', `<br>На двери — до ${DOOR_CHECKS} осмотров на гостя. Утром — ${MORNING_CHECKS + morningBonus()} осмотра на всех жильцов. Посетитель в доме нападает со второй ночи.`));
+      c.appendChild(el('div', 'fine', `<br>На двери этой ночью — ${doorChecks()} ${plural(doorChecks(), 'осмотр', 'осмотра', 'осмотров')} на гостя, признаков известно больше. Утром — ${MORNING_CHECKS + morningBonus()} осмотра на всех жильцов. Посетитель в доме нападает со второй ночи.`));
       if (S.house.length) c.appendChild(el('div', 'fine', 'В доме: ' + S.house.map(h => esc(C(h.id).name)).join(', ') + ', кот Тапок.'));
     }
     const r = el('div', 'row'); r.style.marginTop = '10px';
@@ -461,7 +471,7 @@
       r.appendChild(btn('Посмотреть в глазок', 'green', () => {
         Sound.creak();
         if (c.id === 'patrol') showPatrol();
-        else showGuest(c, { left: DOOR_CHECKS, used: {}, asked: {} });
+        else showGuest(c, { left: doorChecks(), max: doorChecks(), used: {}, asked: {} });
       }));
     }, 900);
     cleanups.push(() => clearTimeout(tm));
@@ -476,6 +486,7 @@
     if (c.id === 'zoya' && inHouse('tamara')) h.push('Тамара Ильинична роняет ложку: «Зойка?! Живая! Это она, это её вредный голос!»');
     if (c.id === 'gleb' && S.flags.patrolSeen) h.push('Вы помните: настоящий патруль ходит группой и в жёлтых костюмах.');
     if (c.id === 'petr' && inHouse('gosha')) h.push(C('gosha').visitor ? 'Гоша смотрит в глазок и молчит. Долго. Потом говорит ровным голосом: «Не знаю этого человека».' : 'Гоша прилипает к глазку: «Батя?.. Голос его. Уши его. Но я же… я же не знаю, как они это делают».');
+    if (c.id === 'judge' && S.dead.length) h.push(`Вы почему-то сразу вспоминаете ${S.dead.length > 1 ? 'всех, кого не пустили' : C(S.dead[0]).name}.`);
     if (c.id === 'liza2') h.push('Шесть ночей назад вы ей не открыли. Она стоит ровно там же.');
     return h;
   }
@@ -508,7 +519,7 @@
     const r1 = el('div', 'row');
     const asked = Object.keys(st.asked).length;
     r1.appendChild(btn('Поговорить', '', () => talkSheet(c, st), `вопросов: ${c.talk.length - asked}`));
-    r1.appendChild(btn('Осмотреть', '', () => checkSheet(c, st, 'door'), `<span class="dots">${'●'.repeat(st.left)}${'○'.repeat(DOOR_CHECKS - st.left)}</span>`));
+    r1.appendChild(btn('Осмотреть', '', () => checkSheet(c, st, 'door'), `<span class="dots">${'●'.repeat(st.left)}${'○'.repeat(Math.max(0, (st.max || doorChecks()) - st.left))}</span>`));
     const r2 = el('div', 'row');
     r2.appendChild(btn('Прогнать', 'red', () => decide(c, false)));
     r2.appendChild(btn('Впустить', 'green', () => decide(c, true)));
@@ -623,6 +634,16 @@
     s.appendChild(r);
   }
 
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  function deathText(c) {
+    const lead = rnd([
+      `Утром в щель ставни вы видите у забора ${c.name}. ${g(c, 'Он', 'Она')} лежит, свернувшись, будто от холода, лицом к вашей двери. Не двигается.`,
+      `${c.name} не ${g(c, 'успел', 'успела')} найти укрытие. На рассвете вы слышали, как ${g(c, 'он', 'она')} стучит в соседние двери. Потом — только ветер.`,
+      `Вы смотрите в глазок. На крыльце, там, где ночью ${g(c, 'стоял', 'стояла')} ${c.name}, теперь пусто. Только солнце лежит на ступеньках белым пятном.`
+    ]);
+    return lead + (c.lost ? ' ' + cap(c.lost) + '.' : '');
+  }
+
   function decide(c, admit) {
     const list = guestsTonight();
     if (admit) {
@@ -636,7 +657,10 @@
         if (Math.random() < 0.5 && !S.pending.some(x => x.k === 'steps')) S.pending.push({ t: 'Под окном до рассвета кто-то ходил кругами. Шаги были слишком лёгкие для человека.', cls: '', k: 'steps' });
       } else {
         S.stats.awayH++;
-        if (c.lost && Math.random() < 0.75) S.pending.push({ t: 'Утром вы выглянули в щель: ' + c.lost + '.', cls: 'bad' });
+        S.guilt++;
+        S.dead.push(c.id);
+        S.deadNight.push(c.id);
+        S.pending.push({ t: deathText(c), cls: 'bad' });
         S.gone.push(c.id);
       }
       Sound.door(false);
@@ -755,6 +779,7 @@
       S.gone.push(victim.id);
       S.stats.takenH++;
       const vc = C(victim.id);
+      S.guilt++;
       log.push({ t: `${vc.name}: постель пуста и застелена так ровно, как люди не застилают. На подушке — горсть сухой земли.`, cls: 'bad' });
     });
     if (attackers.length) Sound.sting();
@@ -765,6 +790,29 @@
     }
     S.pending.forEach(x => log.push(x));
     S.pending = [];
+    // жильцы видят, кого вы не пустили
+    const hs = humansIn();
+    if (S.deadNight.length && hs.length) {
+      const m = C(rnd(hs).id), d = C(rnd(S.deadNight));
+      log.push({ t: rnd([
+        `За завтраком никто не смотрит вам в глаза. ${m.name} тихо говорит: «${d.name} стучал${g(d, '', 'а')} до самого рассвета. Я слышал${g(m, '', 'а')}».`,
+        `${m.name} весь день сидит у окна, где видно забор. Потом спрашивает: «А если бы это были мы?»`,
+        `${m.name} молча ставит на стол лишнюю кружку. Потом убирает.`
+      ]), cls: 'bad' });
+    }
+    // слишком много вины — люди уходят сами
+    if (S.night >= 2 && S.guilt >= 3 && hs.length && Math.random() < Math.min(0.7, (S.guilt - 2) * 0.15)) {
+      const q = rnd(hs), qc = C(q.id);
+      S.house = S.house.filter(h => h !== q);
+      S.gone.push(q.id);
+      S.stats.leftH++;
+      log.push({ t: `${qc.name} собрал${g(qc, '', 'а')} вещи ещё до рассвета: «Вы не пустили уже ${S.dead.length} ${plural(S.dead.length, 'человека', 'человек', 'человек')}. Я не знаю, кто будет следующим. Я лучше попробую сам${g(qc, '', 'а')}». Дверь за ${g(qc, 'ним', 'ней')} закрылась тихо.`, cls: 'bad' });
+    }
+    if (S.guilt >= 3) log.push({ t: rnd(['Вам снились руки, которые стучат в дверь. Вы не открыли и во сне.', 'Под утро вам почудился стук. Вы долго стояли у двери. Никого.', 'Вы не можете вспомнить, как звучали их голоса. От этого хуже.']), cls: '' });
+    S.deadLast = S.deadNight.slice();
+    S.deadNight = [];
+    // Судья выносит вердикт
+    if (inHouse('judge')) log.push({ t: `Судья раскладывает на столе ваши решения, как пасьянс: «Впущено — ${S.stats.inH + S.stats.inV}. Отказано — ${S.stats.awayH + S.stats.awayV}. Мёртвых у забора — ${S.dead.length}. Суд удаляется на совещание». И улыбается.`, cls: '' });
     // кот
     const seer = S.house.find(h => C(h.id).perk === 'seer');
     if (seer) {
@@ -889,6 +937,8 @@
       Sound.sting();
     } else {
       S.stats.expH++;
+      S.guilt += 2;
+      S.dead.push(c.id);
       text = `${c.name} ${g(c, 'обернулся', 'обернулась')} на пороге — ${g(c, 'растерянный', 'растерянная')}, ${g(c, 'обиженный', 'обиженная')}, совершенно человеческий взгляд. Потом ${g(c, 'побежал', 'побежала')} к соседнему дому, закрывая голову руками. Добежал${g(c, '', 'а')} ли — вы не знаете.`;
       Sound.door(false);
     }
@@ -914,6 +964,7 @@
     const vis = visitorsIn().length, hum = humansIn().length;
     let key;
     if (vis > 0) key = 'family';
+    else if (S.dead.length >= 5) key = 'watchman';
     else if (inHouse('veniamin') && hum >= 3) key = 'sun';
     else if (S.stats.expV + S.stats.awayV >= 7 && S.stats.expV >= 2 && hum >= 2) key = 'hunter';
     else if (hum >= 3) key = 'together';
@@ -939,10 +990,13 @@
     const card = el('div', 'card log tilt scroll');
     card.style.maxHeight = '40%';
     E.text.forEach(t => card.appendChild(el('p', '', esc(t))));
+    if (E.tone !== 'bad' && S.dead.length >= 2) {
+      card.appendChild(el('p', 'bad', esc(`Вы помните их всех: ${S.dead.map(id => C(id).name).join(', ')}. Иногда ночью вам кажется, что кто-то из них снова стучит.`)));
+    }
     const st = S.stats;
     const totalV = st.inV + st.awayV;
     const caught = st.awayV + st.expV + st.patrolV;
-    card.appendChild(el('p', 'fine', `Впущено людей: ${st.inH}. Впущено Посетителей: ${st.inV}. Прогнано людей: ${st.awayH}. Прогнано Посетителей: ${st.awayV}. Выставлено на солнце: ${st.expH + st.expV} (из них Посетителей: ${st.expV}). Пропало жильцов: ${st.takenH}.`));
+    card.appendChild(el('p', 'fine', `Впущено людей: ${st.inH}. Впущено Посетителей: ${st.inV}. Прогнано людей: ${st.awayH}. Прогнано Посетителей: ${st.awayV}. Выставлено на солнце: ${st.expH + st.expV} (из них Посетителей: ${st.expV}). Пропало жильцов: ${st.takenH}. Ушли сами: ${st.leftH || 0}. Погибли у вашей двери: ${S.dead.length}.`));
     card.appendChild(el('p', 'fine', `Распознано Посетителей: ${Math.min(caught, totalV)} из ${totalV}.`));
     const l = el('div', 'endings-list');
     for (const k in D.ENDINGS) {

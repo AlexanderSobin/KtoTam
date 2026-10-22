@@ -49,6 +49,15 @@
   function background(k, s, W, H) {
     const c = k.ctx;
     c.fillStyle = s.bg; c.fillRect(0, 0, W, H);
+    if (s.sunset) {
+      // закат над пустыней и плоские столовые горы
+      const gr = c.createLinearGradient(0, 0, 0, H);
+      gr.addColorStop(0, '#3a1a14'); gr.addColorStop(0.45, '#b4482a'); gr.addColorStop(0.7, '#e8923a'); gr.addColorStop(1, '#5a2a14');
+      c.fillStyle = gr; c.fillRect(0, 0, W, H);
+      k.scribble(0, 0, W, H * 0.5, { n: 20, color: '#2a0e08', alpha: 0.25, len: 70, w: 3 });
+      k.shape([[0, 330], [60, 320], [70, 290], [130, 288], [140, 330], [260, 325], [275, 300], [320, 298], [330, 330], [400, 332], [400, 500], [0, 500]], '#3a1a10', { w: 2.5, hatch: { angle: 0.1, gap: 6, alpha: 0.3 } });
+      return;
+    }
     k.spot(W * 0.3, H * 0.05, W * 0.9, s.glow, 0.35);
     k.spot(W * 0.75, H * 0.25, W * 0.4, s.glow, 0.12);
     k.scribble(0, 0, W, H, { n: 40, color: '#0d0907', alpha: 0.25, len: 60, w: 3 });
@@ -184,7 +193,7 @@
     // глазницы
     for (const side of [-1, 1]) {
       const ex = 200 + side * s.eyes.gap, ey = h.y + s.eyes.y;
-      k.spot(ex, ey - 2, 30 * s.eyes.size, '#4a2a2a', 0.22 + s.eyes.bags * 0.12);
+      k.spot(ex, ey - 2, 30 * s.eyes.size * (s.face.sockets ? 1.5 : 1), '#3a1a1a', 0.22 + s.eyes.bags * 0.12 + (s.face.sockets || 0));
     }
     // тень под носом и подбородком
     k.spot(206, h.y + s.nose.y + 26, 22, '#3a2018', 0.18);
@@ -387,19 +396,21 @@
     if (t === 'grin' || t === 'open' || t === 'teeth') {
       const up = t === 'grin' ? -6 : 0;
       const top = k.curve([[x - w, y + up], [x - w * 0.4, y - 4], [x + w * 0.4, y - 4], [x + w, y + up]]);
-      const bot = k.curve([[x + w, y + up], [x + w * 0.5, y + (t === 'open' ? 22 : 16)], [x - w * 0.5, y + (t === 'open' ? 22 : 16)], [x - w, y + up]]);
+      const dep = (t === 'open' ? 22 : 16) * (M.tall || 1);
+      const bot = k.curve([[x + w, y + up], [x + w * 0.5, y + dep], [x - w * 0.5, y + dep], [x - w, y + up]]);
       const m = top.concat(bot);
       k.fill(m, '#3a1712');
       k.clip(m, () => {
         // зубы
         const many = tell(s, 'teeth');
-        const n = many ? 14 : 7;
+        const n = many ? 14 : (M.teethN || 7);
         const tw = (w * 2) / n;
         for (let i = 0; i < n; i++) {
           const tx = x - w + i * tw;
           const tc = decoy(s, 'yellowTeeth') ? '#d8c27a' : (decoy(s, 'goldTooth') && i === 2 ? '#d9a830' : '#efe6cf');
           if (decoy(s, 'missingTooth') && i === 4) continue;
-          k.shape([[tx + 0.5, y - 8], [tx + tw - 0.5, y - 8], [tx + tw - 1, y + 4], [tx + 1, y + 5]], tc, { w: 1 });
+          k.shape([[tx + 0.5, y - 8], [tx + tw - 0.5, y - 8], [tx + tw - 1, y + 4 * (M.tall || 1)], [tx + 1, y + 5 * (M.tall || 1)]], tc, { w: 1 });
+          if (M.tall) k.shape([[tx + 1, y + dep - 2], [tx + tw - 1, y + dep - 2], [tx + tw - 1.5, y + dep - 12], [tx + 1.5, y + dep - 12]], tc, { w: 1 });
         }
         k.spot(x, y + 16, w * 0.7, '#a2453c', 0.6);
       });
