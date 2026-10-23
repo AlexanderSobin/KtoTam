@@ -70,7 +70,7 @@
         row(k, cx, cy - 22, 18, 120, 22, '#b9b4a6', -1, 0.6);
         row(k, cx, cy + 22, 18, 120, 20, '#b9b4a6', 1, 0.6);
       }
-      const n = many ? (s.subtle ? 11 : 16) : 8;
+      const n = many ? (s.subtle ? 11 : 16) : (P.decoy(s, 'crowdedTeeth') ? 12 : 8);
       row(k, cx, cy - 52, n, 140, many ? 34 : 46, baseCol, -1, 1, s);
       row(k, cx, cy + 48, n, 130, many ? 28 : 36, baseCol, 1, 1, s);
     });
@@ -88,7 +88,9 @@
     for (let i = 0; i < n; i++) {
       if (s && P.decoy(s, 'missingTooth') && i === Math.floor(n * 0.3)) continue;
       const x = cx - half + i * tw;
-      const curve = Math.pow((x + tw / 2 - cx) / half, 2) * 18 * dir;
+      // кривые, налезающие друг на друга зубы — но в один ряд
+      const crowd = s && alpha === 1 && P.decoy(s, 'crowdedTeeth') && !P.tell(s, 'teeth') ? k.srand(-7, 7) : 0;
+      const curve = Math.pow((x + tw / 2 - cx) / half, 2) * 18 * dir + crowd;
       const t0 = y - curve, t1 = y + dir * th - curve;
       const pts = dir < 0
         ? [[x + 1, t0], [x + tw - 1, t0], [x + tw - 2, t1 - 5], [x + tw / 2, t1 + 2], [x + 2, t1 - 5]]
@@ -158,6 +160,7 @@
     let col = mix(s.skin, '#f2c8c0', 0.5);
     if (v) col = '#56677a';
     if (P.decoy(s, 'polish')) col = '#b0283a';
+    else if (!v && P.decoy(s, 'sunNails')) col = '#7f8e9e'; // солнечный ожог: серо-синие, но с лункой
     k.fill(nl, col);
     k.clip(nl, () => {
       if (!v) {
@@ -206,8 +209,15 @@
       (s.subtle ? seeds.slice(1, 3) : seeds).forEach(sd => frost(k, sd[0], sd[1], k.srand(0, 6.28), s.subtle ? 17 : 26, s.subtle ? 3 : 4));
       if (!s.subtle) k.spot(cx, cy, 60, '#dce8f0', 0.2);
     } else {
-      const sweatOnly = s.f && !P.decoy(s, 'hairyPits');
-      const dense = P.decoy(s, 'hairyPits') ? 90 : (sweatOnly ? 0 : 34);
+      const shaved = P.decoy(s, 'shavedPits') && !P.decoy(s, 'hairyPits');
+      const sweatOnly = s.f && !P.decoy(s, 'hairyPits') && !shaved;
+      const dense = P.decoy(s, 'hairyPits') ? 90 : (sweatOnly || shaved ? 0 : 34);
+      if (shaved) {
+        // бритая кожа: гладко, но с точками щетины и раздражением
+        k.spot(cx, cy, 60, '#8a9098', 0.18);
+        k.dots(cx, cy, 46, 120, mix(s.skin, '#2a1a10', 0.6), 0.8);
+        for (let i = 0; i < 5; i++) k.spot(cx + k.srand(-40, 40), cy + k.srand(-15, 20), 8, '#c4503a', 0.35);
+      }
       const hx = SK.hex(s.hair.color);
       const hc = (hx[0] + hx[1] + hx[2] > 420) ? '#4a3c2e' : shade(s.hair.color, -0.25);
       for (let i = 0; i < dense; i++) {

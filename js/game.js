@@ -48,6 +48,9 @@
   // Кто из «сомнительных» гостей окажется Посетителем, какие признаки
   // у кого видны, кто когда стучит — всё решается заново в каждой игре.
   const DECOY_POOL = ['redEyes', 'yellowTeeth', 'missingTooth', 'goldTooth', 'dirtyNails', 'sweaty', 'hairyPits'];
+  // «Двойники признаков»: у людей бывает почти то же самое, что у Посетителей.
+  // Выпадают только гостям тех ночей, когда о них уже рассказали в новостях.
+  const LOOKALIKES = { oddPupil: 3, crowdedTeeth: 3, sunNails: 4, shavedPits: 4, slowPupil: 5 };
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
     return a;
@@ -59,7 +62,7 @@
     do {
       v = {};
       maybe.forEach(id => { v[id] = Math.random() < 0.42; });
-    } while (maybe.filter(id => v[id]).length < 5 || maybe.filter(id => v[id]).length > 9);
+    } while (maybe.filter(id => v[id]).length < 6 || maybe.filter(id => v[id]).length > 10);
     ids.forEach(id => { if (D.C[id].visitor !== 'maybe') v[id] = !!D.C[id].visitor; });
     const nightOf = {};
     D.NIGHTS.forEach((n, i) => n.guests.forEach(id => { nightOf[id] = i; }));
@@ -84,6 +87,9 @@
         const extra = r < 0.15 ? 2 : r < 0.6 ? 1 : 0;
         shuffle(DECOY_POOL.slice()).slice(0, extra).forEach(x => base.push(x));
       }
+      const looks = Object.keys(LOOKALIKES).filter(k => n >= LOOKALIKES[k]);
+      if (looks.length && Math.random() < (v[id] ? 0.25 : 0.5)) base.push(rnd(looks));
+      if (looks.length > 1 && !v[id] && Math.random() < 0.2) base.push(rnd(looks));
       d[id] = Array.from(new Set(base));
     });
     // порядок стуков и ночь патруля
@@ -403,7 +409,7 @@
       }
     }
     if (S) {
-      c.appendChild(el('div', 'fine', `<br>На двери этой ночью — ${doorChecks()} ${plural(doorChecks(), 'осмотр', 'осмотра', 'осмотров')} на гостя, признаков известно больше. Утром — ${MORNING_CHECKS + morningBonus()} ${plural(MORNING_CHECKS + morningBonus(), 'осмотр', 'осмотра', 'осмотров')} на всех жильцов. Посетитель в доме нападает со второй ночи.`));
+      c.appendChild(el('div', 'fine', `<br>На двери этой ночью — ${doorChecks()} ${plural(doorChecks(), 'осмотр', 'осмотра', 'осмотров')} на гостя, признаков известно больше. Утром — ${MORNING_CHECKS + morningBonus()} ${plural(MORNING_CHECKS + morningBonus(), 'осмотр', 'осмотра', 'осмотров')} на всех жильцов. Посетитель в доме обычно нападает со второй ночи. Ближе к концу недели — бывает, что и в первую.`));
       if (S.house.length) c.appendChild(el('div', 'fine', 'В доме: ' + S.house.map(h => esc(C(h.id).name)).join(', ') + ', кот Тапок.'));
     }
     const r = el('div', 'row'); r.style.marginTop = '10px';
@@ -607,8 +613,9 @@
     if (type === 'light') {
       Sound.flash();
       const v = (c.tells || []).includes('light');
-      const target = v ? (c.subtle ? 1.3 : 1.75) : 0.35;
-      const t0 = performance.now() + (c.subtle ? 350 : 0);
+      const slow = !v && (c.decoys || []).includes('slowPupil');
+      const target = v ? (c.subtle ? 1.3 : 1.75) : (slow ? 0.62 : 0.35);
+      const t0 = performance.now() + (c.subtle ? 350 : 0) + (slow ? 700 : 0);
       let f = 0;
       const tm = setInterval(() => {
         const t = Math.max(0, Math.min(1, (performance.now() - t0) / 1400));
@@ -780,7 +787,8 @@
 
   function resolveNight() {
     const log = [];
-    const attackers = S.house.filter(h => C(h.id).visitor && h.since < S.night);
+    // с четвёртой ночи голодный Посетитель может напасть в первую же ночь
+    const attackers = S.house.filter(h => C(h.id).visitor && (h.since < S.night || (S.night >= 3 && Math.random() < 0.35)));
     attackers.forEach(a => {
       const hs = humansIn();
       if (!hs.length) return;
@@ -977,7 +985,7 @@
     let key;
     if (vis > 0) key = 'family';
     else if (S.dead.length >= 5) key = 'watchman';
-    else if (inHouse('veniamin') && hum >= 3) key = 'sun';
+    else if (inHouse('veniamin') && hum >= 3 && S.dead.length < 3) key = 'sun';
     else if (S.stats.expV + S.stats.awayV >= 7 && S.stats.expV >= 2 && hum >= 2) key = 'hunter';
     else if (hum >= 3) key = 'together';
     else if (S.stats.awayH >= 5) key = 'watchman';

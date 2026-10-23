@@ -270,7 +270,7 @@
       k.stroke(ip, { w: 1.1 * sc + 0.5, color: shade(iris, -0.55) });
       const ps = glass ? 1 : (o.pupil != null ? o.pupil : 1);
       const pr = ir * 0.42 * ps;
-      if (tell(s, 'eyes') && !glass && !(s.oneEye && side < 0)) {
+      if (tell(s, 'eyes') && !o.portrait && !glass && !(s.oneEye && side < 0)) {
         // двойной зрачок — главный признак «Посетителя»
         if (s.subtle) {
           // слабый признак: обычный зрачок и маленький «нарост» сбоку
@@ -281,6 +281,10 @@
           k.shape(k.blob(ix - off, iy, pr * 0.78, pr * 0.85, { irr: 0.05 }), '#0e0906', { w: 0 });
           k.shape(k.blob(ix + off, iy + pr * 0.12, pr * 0.7, pr * 0.78, { irr: 0.05 }), '#0e0906', { w: 0 });
         }
+      } else if (decoy(s, 'oddPupil') && side > 0 && !glass) {
+        // человеческая «замочная скважина»: зрачок вытянут вниз, но он один
+        k.shape(k.blob(ix, iy + pr * 0.15, pr * 0.8, pr * 1.2, { irr: 0.04 }), '#0e0906', { w: 0 });
+        k.shape(k.blob(ix, iy + pr * 1.15, pr * 0.32, pr * 0.42, { irr: 0.05 }), '#0e0906', { w: 0 });
       } else {
         k.shape(k.blob(ix, iy, pr, pr, { irr: 0.03 }), '#0e0906', { w: 0 });
       }
@@ -408,7 +412,7 @@
       k.fill(m, '#3a1712');
       k.clip(m, () => {
         // зубы
-        const many = tell(s, 'teeth');
+        const many = false; // в портрете зубы не выдают: смотрите вблизи
         const n = many ? 14 : (M.teethN || 7);
         const tw = (w * 2) / n;
         for (let i = 0; i < n; i++) {
@@ -849,7 +853,7 @@
     if (s.hat.type === 'hazmat') hazmatBack(k, s); else if (!hooded) ears(k, s);
     const hp = headPts(k, s);
     headFill(k, s, hp);
-    eyesAndBrows(k, s, { blink: o.blink });
+    eyesAndBrows(k, s, { blink: o.blink, portrait: true });
     nose(k, s);
     facialHair(k, s, 'beard');
     mouth(k, s, o);
