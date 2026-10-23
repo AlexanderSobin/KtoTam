@@ -114,7 +114,14 @@
           k.line(x, y, x + k.srand(-6, 6), y + k.srand(15, 30), { w: 2, color: '#e9e3cf', alpha: 0.5 });
         }
       }
-    } else if (t === 'sweater') {
+    }
+    if (cl.stripes) {
+      for (let i = 0; i < 2; i++) {
+        const y = top + 100 + i * 50;
+        k.clip(pts, () => { k.line(0, y, 400, y + 6, { w: 11, color: '#d8c040', alpha: 0.9, jit: 1.5 }); k.line(0, y, 400, y + 6, { w: 4, color: '#e8e8d8', alpha: 0.8 }); });
+      }
+    }
+    if (t === 'sweater') {
       const coll = k.blob(200, top + 18, 48, 20, { irr: 0.04 });
       k.shape(coll, shade(col, -0.15), { w: 2.5, hatch: { angle: 1.57, gap: 4, alpha: 0.4 } });
       if (cl.pattern === 'stripes') for (let i = 0; i < 3; i++) {
@@ -207,6 +214,9 @@
     if (s.face.stubble) k.clip(hp, () => k.dots(200, h.y + h.h * 0.72, h.w * 0.7, Math.round(140 * s.face.stubble), mix(s.skin, '#2a2018', 0.65), 0.9));
     if (s.face.freckles) k.clip(hp, () => {
       for (const side of [-1, 1]) k.dots(200 + side * 42, h.y + 32, 22, Math.round(18 * s.face.freckles), '#8a4f2a', 1.6);
+    });
+    if (s.face.soot) k.clip(hp, () => {
+      for (let i = 0; i < 7; i++) k.spot(200 + k.srand(-h.w * 0.8, h.w * 0.8), h.y + k.srand(-h.h * 0.6, h.h * 0.7), k.srand(10, 22), '#2a1a10', 0.35 * s.face.soot);
     });
     for (let i = 0; i < s.face.moles; i++) {
       const x = 200 + k.srand(-h.w * 0.6, h.w * 0.6), y = h.y + k.srand(20, 70);
@@ -649,6 +659,15 @@
         k.line(200 + side * 22, topY + 28, 200 + side * 34, topY + 34, { w: 2, color: '#ffffff', alpha: 0.6 });
       }
       k.line(200 - 12, topY + 40, 200 + 12, topY + 40, { w: 4 });
+    } else if (T.type === 'fireman') {
+      // латунная пожарная каска с гребнем и козырьком
+      const dome = k.curve([[200 - h.w * 1.08, topY + 52], [200 - h.w * 1.0, topY - 6], [200, topY - 36], [200 + h.w * 1.0, topY - 6], [200 + h.w * 1.08, topY + 52]]);
+      k.shape(dome, col, { w: 3.5, shadeSide: [0.6, 0.2], shadeAmt: 0.3 });
+      k.spot(200 - h.w * 0.4, topY, 30, '#fff2c8', 0.45);
+      k.shape([[200 - 10, topY - 40], [200 + 10, topY - 40], [200 + 14, topY + 40], [200 - 14, topY + 40]], shade(col, -0.2), { w: 2.5 });
+      const brim = k.blob(200, topY + 54, h.w * 1.35, 14, { irr: 0.04 });
+      k.shape(brim, shade(col, -0.15), { w: 3 });
+      k.shape(k.blob(200, topY + 22, 14, 14), '#a03a2a', { w: 2 });
     } else if (T.type === 'nurse') {
       const p = [[200 - 50, topY + 14], [200 - 40, topY - 26], [200 + 40, topY - 26], [200 + 50, topY + 14]];
       k.shape(p, '#efe9dc', { w: 3 });
@@ -803,6 +822,15 @@
       k.shape([[270, 380], [370, 375], [375, 500], [272, 500]], '#8a6a3a', { w: 3 });
       k.shape([[280, 395], [362, 392], [365, 500], [282, 500]], '#efe9dc', { w: 2 });
       for (let i = 0; i < 5; i++) k.line(292, 412 + i * 16, 350, 410 + i * 16, { w: 1.3, alpha: 0.6 });
+    }
+    if (has(s, 'camera')) {
+      // видеокамера на плече
+      k.shape([[262, 300], [380, 290], [392, 372], [270, 384]], '#3a3a38', { w: 3.5, shadeSide: [0.4, 0.6], shadeAmt: 0.25, hatch: { angle: 0.2, gap: 5, alpha: 0.3, dash: true } });
+      k.shape(k.blob(262, 340, 24, 30), '#2a2a28', { w: 3 });
+      k.shape(k.blob(258, 340, 15, 20), '#5a7a8a', { w: 2 });
+      k.line(250, 328, 256, 336, { w: 2, color: '#ffffff', alpha: 0.6 });
+      k.shape([[300, 270], [360, 266], [362, 292], [302, 296]], '#2a2a28', { w: 2.5 });
+      k.shape(k.blob(372, 306, 5, 5), '#d83a2a', { w: 0 });
     }
     if (has(s, 'broom')) {
       k.shape([[52, 500], [62, 500], [104, 250], [96, 248]], '#8a6a3a', { w: 2.5 });

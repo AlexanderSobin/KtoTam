@@ -320,6 +320,11 @@
     Sound.stopAmbient();
     const n0 = D.NEWS[S.night];
     const n = Object.assign({}, n0, { text: n0.text.slice() });
+    if (S.flags.genaNews == null && inHouse('gena')) {
+      S.flags.genaNews = true;
+      n.text.splice(1, 0, 'Хорошая новость: наш оператор Гена нашёлся. Говорят, его приютили добрые люди. Гена, мы тебя ждём. И камеру тоже.');
+    }
+    if (S.deadLast && S.deadLast.includes('gena')) n.text.splice(1, 0, 'Студия молчит минуту. Среди тех, кто не дожил до утра, — наш оператор Гена.');
     if (S.deadLast && S.deadLast.length) {
       n.text.splice(1, 0, `Сводка по вашей улице. На рассвете не успели укрыться: ${S.deadLast.map(id => C(id).name).join(', ')}. Соседи видели, как они стучали в двери. Им не открыли.`);
     }
@@ -501,6 +506,7 @@
     if (c.id === 'olga' && inHouse('sonya')) h.push('Соня прячется за вашей спиной и шепчет: «У мамы голос не такой… Мама бы спросила про Клёпу».');
     if (c.id === 'zoya' && inHouse('tamara')) h.push('Тамара Ильинична роняет ложку: «Зойка?! Живая! Это она, это её вредный голос!»');
     if (c.id === 'gleb' && S.flags.patrolSeen) h.push('Вы помните: настоящий патруль ходит группой и в жёлтых костюмах.');
+    if (c.id === 'nina' && inHouse('gena')) h.push(C('gena').visitor ? 'Гена смотрит в глазок и пожимает плечами: «Соседка какая-то. Не знаю её».' : (C('nina').visitor ? 'Гена долго смотрит в глазок: «Похожа на Нину. Очень похожа. Только Нина картавит, а эта… нет»' : 'Гена бледнеет и шепчет: «Нина… Это Нина. Это моя Нина»'));
     if (c.id === 'petr' && inHouse('gosha')) h.push(C('gosha').visitor ? 'Гоша смотрит в глазок и молчит. Долго. Потом говорит ровным голосом: «Не знаю этого человека».' : 'Гоша прилипает к глазку: «Батя?.. Голос его. Уши его. Но я же… я же не знаю, как они это делают».');
     if (c.id === 'judge' && S.dead.length) h.push(`Вы почему-то сразу вспоминаете ${S.dead.length > 1 ? 'всех, кого не пустили' : C(S.dead[0]).name}.`);
     if (c.id === 'liza2') h.push('Шесть ночей назад вы ей не открыли. Она стоит ровно там же.');
@@ -793,6 +799,13 @@
       const hs = humansIn();
       if (!hs.length) return;
       const victim = rnd(hs);
+      // пожарный не спит по ночам и один раз успевает встать на пути
+      const fire = S.house.find(h => h.id === 'bogdan' && !C('bogdan').visitor);
+      if (fire && !S.flags.fireSaved && victim.id !== 'bogdan') {
+        S.flags.fireSaved = true;
+        log.push({ t: `Ночью Богдан услышал шорох и встал у постели: ${C(victim.id).name}. Так и простоял до утра, с топором от печки. Он не говорит, что видел. Руки у него дрожат.`, cls: '' });
+        return;
+      }
       S.house = S.house.filter(h => h !== victim);
       S.gone.push(victim.id);
       S.stats.takenH++;
